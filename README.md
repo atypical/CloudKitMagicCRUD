@@ -1,5 +1,15 @@
 # CloudKitMagic
 
+## iOS 17 Modernization
+
+This package has been updated to support iOS 17 and newer Swift versions. Key changes include:
+
+- Fixed initialization issues with async/await CloudKit operations
+- Improved error handling for older OS versions
+- Updated notification handling for modern iOS versions
+- Enhanced type safety in record loading and caching
+- Removed external dependencies for better self-containment
+
 ## How to use it
 
 ### Configuring your project
@@ -327,6 +337,3 @@ struct CertifiedCodableData:Codable {
 	init(_ originalData:[String:Any])
 	
 }
-
-```
-

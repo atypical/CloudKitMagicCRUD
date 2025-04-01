@@ -383,6 +383,18 @@ extension CKMCloudable {
 		return result
 	}
 	
+	public static func load(from dictionary:[String:Any])throws->Self {
+		// Convert dictionary to Data and then decode using JSONDecoder
+		do {
+			let data = try JSONSerialization.data(withJSONObject: dictionary, options: [])
+			let decoder = JSONDecoder()
+			let result = try decoder.decode(Self.self, from: data)
+			return result
+		} catch {
+			throw CRUDError.cannotMapRecordToObject
+		}
+	}
+	
     public mutating func reloadIgnoringFail(completion: ()->Void) {
         
             guard let recordName = self.recordName else { return }

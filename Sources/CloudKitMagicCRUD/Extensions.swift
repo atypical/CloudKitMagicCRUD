@@ -9,7 +9,14 @@
 //
 
 import CloudKit
-import CodableExtensions
+import Foundation
+
+// Add URL extension for contentAsData
+public extension URL {
+    var contentAsData: Data? {
+        try? Data(contentsOf: self)
+    }
+}
 
 public typealias CKMCursor = CKQueryOperation.Cursor
 public typealias CKMRecordName = String
@@ -260,29 +267,29 @@ public extension Optional {
 @available(watchOS 6.0.0, *)
 extension CKMPreparedRecord {
     
+    /// Save all pending references in the record, and return the updated CKRecord.
+    ///
+    /// - Parameter savedRecord: The CKRecord that was saved.
+    /// - Returns: The updated CKRecord with all pending references saved.
+    /// - Throws: PrepareRecordError if there is an error saving a pending reference.
     public func dispatchPending(for savedRecord: CKRecord) async throws -> CKRecord {
-        // Me atualizar
         self.record = savedRecord
         self.objectSaving.recordName = record.recordID.recordName
         CKMDefault.addToCache(record)
         
-        // Verificar se tá tudo bem com o recordName (unwrap)
         guard let _ = objectSaving.recordName else {
             throw PrepareRecordError.CannotDispatchPendingWithoutSavedRecord("Object \(objectSaving) must have a recordName")
         }
         
-        // checar se há pendências
         guard !pending.isEmpty else { return record }
         
-        // Se existem pendências,
         for item in pending {
-            // Salva cada uma delas
             let savedBranchRecord = try await item.cyclicReferenceBranch.ckSave()
             
             guard let referenceID = savedBranchRecord.recordName else {
                 throw PrepareRecordError.ErrorSavingReferenceObject("\(item.pendingCyclicReferenceName) in \(self.record.recordType) - Record saved without reference")
             }
-            // Ao salvar faz o update do record referenciado
+            
             if let ckRecord = try await self.updateRecord(with: referenceID, in: item) {
                 return ckRecord
             }
@@ -303,9 +310,7 @@ extension CKMPreparedRecord {
             self.record.setValue(reference, forKey: referenceField)
         }
         
-        // Se acabaram as pendências
         if self.allPendingValuesFilled {
-            // Atualiza o CKRecord no BD, e completa com o resultado
             let record = try await CKMDefault.database.save(self.record)
             CKMDefault.addToCache(record)
             return record

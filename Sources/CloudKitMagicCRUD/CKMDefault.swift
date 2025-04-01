@@ -3,7 +3,7 @@
 //  ClodKitMagic
 //
 //  Created by Ricardo Venieris on 28/07/20.
-//  Copyright © 2020 Ricardo Venieris. All rights reserved.
+//  Copyright 2020 Ricardo Venieris. All rights reserved.
 //
 //  Modified by MDavid Low on 04/2025
 //
@@ -137,7 +137,7 @@ open class CKMDefault {
     
     public static func getFromCache<T:CKMRecord>(all: T.Type)->[T]? {
         return Self.cache.filter {$0.value.record.recordType == T.ckRecordType}
-            .compactMap{try? T.load(from: $0.value.record.asDictionary)}
+            .compactMap{try? T.load(from: $0.value.record)}
         
     }
     
