@@ -96,14 +96,28 @@ protocol CKMRecord {
 	/**
 	Read all records from a type
 	- Parameters:
-	- sortedBy a array of  SortDescriptors (or string array)
-	- predicate a NSPredicate with some query  restrictions
-	- returns: a (Result<Any, Error>) where Any contais a type objects array [T] in a completion handler
+	- predicate a NSPredicate with some query restrictions
+	- sortedBy a array of SortDescriptors (or string array)
+	- limit the maximum number of records to fetch (default: CKQueryOperation.maximumResults)
+	- returns: a Result with records array and optional cursor for pagination in a completion handler
 	*/
-	static func ckLoadAll(sortedBy sortKeys:[CKSortDescriptor],
-						  predicate:NSPredicate,
-						  then completion:@escaping (Result<Any, Error>)->Void)
+	static func ckLoadAll(predicate:NSPredicate,
+						  sortedBy sortKeys:[CKSortDescriptor],
+						  limit:Int,
+						  then completion:@escaping (Result<(records:[Any], queryCursor: CKQueryOperation.Cursor?), Error>)->Void)
 	
+	/**
+	Read all records from a type with async/await support (iOS 15+)
+	- Parameters:
+	- predicate a NSPredicate with some query restrictions
+	- sortedBy a array of SortDescriptors (or string array)
+	- limit the maximum number of records to fetch (default: CKQueryOperation.maximumResults)
+	- returns: a CKMRecordAsyncResult containing records, cursor, and any partial errors
+	*/
+	@available(iOS 15.0, *)
+	static func ckLoadAll(predicate:NSPredicate,
+						  sortedBy sortKeys:[CKSortDescriptor],
+						  limit:Int) async -> CKMRecordAsyncResult
 	
 	/**
 	Read all records from a type
