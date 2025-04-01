@@ -123,7 +123,7 @@ extension CKMCloudable {
 			guard !"\(value)".elementsEqual("nil") else {continue} // se valor nil nem perde tempo
 			guard let key = field.label else { fatalError("Type \(mirror) have field without label.") }
 			
-			//MARK: Tratamento de todos os tipos possíveis
+			//MARK: Treatment of all possible types
 			
 			if field.label?.elementsEqual("recordName") ?? false
 				|| field.label?.elementsEqual("createdBy") ?? false
@@ -375,7 +375,7 @@ extension CKMCloudable {
 	
 	public static func load(from record:CKRecord)throws->Self {
 		if record.haveCycle() {
-			//TODO: Trata criação de objeto com ciclo
+			//TODO: Handles object creation with cycle
 			fatalError("Cannot have cycle loading object... yet")
 		} // else
 		
@@ -386,16 +386,67 @@ extension CKMCloudable {
 	public static func load(from dictionary:[String:Any])throws->Self {
 		// Convert dictionary to Data and then decode using JSONDecoder
 		do {
-			let data = try JSONSerialization.data(withJSONObject: dictionary, options: [])
+			// Create a sanitized copy of the dictionary that's safe for JSON serialization
+			var sanitizedDictionary = [String: Any]()
+			
+			// Process each key-value pair to ensure JSON compatibility
+			for (key, value) in dictionary {
+				if let date = value as? Date {
+					// Convert Date objects to timeIntervalSinceReferenceDate (Double)
+					sanitizedDictionary[key] = date.timeIntervalSinceReferenceDate
+				} else if let dateArray = value as? [Date] {
+					// Handle arrays of Date objects
+					sanitizedDictionary[key] = dateArray.map { $0.timeIntervalSinceReferenceDate }
+				} else if value is NSNull {
+					// Skip null values or provide a default
+					continue
+				} else if let nestedDict = value as? [String: Any] {
+					// Handle nested dictionaries recursively if needed
+					sanitizedDictionary[key] = sanitizeForJSON(nestedDict)
+				} else {
+					// Copy other values as is
+					sanitizedDictionary[key] = value
+				}
+			}
+			
+			let data = try JSONSerialization.data(withJSONObject: sanitizedDictionary, options: [])
 			let decoder = JSONDecoder()
+			
+			// Configure decoder to handle date conversions
+			decoder.dateDecodingStrategy = .custom { decoder in
+				let container = try decoder.singleValueContainer()
+				let timeInterval = try container.decode(Double.self)
+				return Date(timeIntervalSinceReferenceDate: timeInterval)
+			}
+			
 			let result = try decoder.decode(Self.self, from: data)
 			return result
 		} catch {
+			debugPrint("Error converting dictionary to object: \(error)")
 			throw CRUDError.cannotMapRecordToObject
 		}
 	}
 	
-    public mutating func reloadIgnoringFail(completion: ()->Void) {
+	// Helper function to sanitize dictionaries for JSON serialization
+	private static func sanitizeForJSON(_ dictionary: [String: Any]) -> [String: Any] {
+		var sanitized = [String: Any]()
+		for (key, value) in dictionary {
+			if let date = value as? Date {
+				sanitized[key] = date.timeIntervalSinceReferenceDate
+			} else if let dateArray = value as? [Date] {
+				sanitized[key] = dateArray.map { $0.timeIntervalSinceReferenceDate }
+			} else if value is NSNull {
+				continue
+			} else if let nestedDict = value as? [String: Any] {
+				sanitized[key] = sanitizeForJSON(nestedDict)
+			} else {
+				sanitized[key] = value
+			}
+		}
+		return sanitized
+	}
+	
+	public mutating func reloadIgnoringFail(completion: ()->Void) {
         
             guard let recordName = self.recordName else { return }
             DispatchQueue.global().sync {
