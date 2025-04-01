@@ -3,7 +3,9 @@
 //  CloudKitMagic
 //
 //  Created by Ricardo Venieris on 22/08/20.
-//  Copyright © 2020 Ricardo Venieris. All rights reserved.
+//  Copyright 2020 Ricardo Venieris. All rights reserved.
+//
+//  Modified by MDavid Low on 04/2025
 //
 
 import CloudKit
@@ -392,7 +394,7 @@ extension CKMCloudable {
                     if let record = record {
                         do {
                             CKMDefault.addToCache(record)
-                            result = try Self.load(from: record)
+                            result = try Self.load(from: record.asDictionary)
                             CKMDefault.semaphore.signal()
                         } catch {}
                     }
@@ -521,8 +523,10 @@ extension CKMCloudable {
 }
 
 /// New async/await implementations
+@available(watchOS 6.0.0, *)
 @available(iOS 13.0.0, *)
 extension CKMCloudable {
+    @available(watchOS 6.0.0, *)
     @available(iOS 15.0, *)
     public static func ckLoadNext(cursor: CKQueryOperation.Cursor,
                                   limit: Int = CKQueryOperation.maximumResults) async -> CKMRecordAsyncResult {
@@ -545,6 +549,7 @@ extension CKMCloudable {
         ///    - or
         ///       - an Error, if something goes wrong.
     
+    @available(watchOS 6.0.0, *)
     @available(iOS 15.0, *)
     public static func ckLoadAll(predicate: NSPredicate = NSPredicate(value: true),
                                  sortedBy sortKeys:[CKSortDescriptor] = [],
@@ -582,7 +587,8 @@ extension CKMCloudable {
         
         return finalAsyncResult
     }
-        @available(iOS 15.0, *)
+    @available(watchOS 6.0.0, *)
+    @available(iOS 15.0, *)
         private static func ckGLoadAll(predicate: NSPredicate = NSPredicate(value: true),
                                        sortedBy sortKeys: [CKSortDescriptor] = [],
                                        cursor: CKQueryOperation.Cursor? = nil,
@@ -599,9 +605,23 @@ extension CKMCloudable {
             do {
                 var result: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
                 if let cursor {
-                    result = try await CKMDefault.database.records(continuingMatchFrom: cursor)
+                    if #available(watchOS 8.0, *) {
+                        result = try await CKMDefault.database.records(continuingMatchFrom: cursor)
+                    } else {
+                        // Fallback on earlier versions
+                        // Initialize with empty values for older OS versions
+                        result = (matchResults: [], queryCursor: nil)
+                        throw CRUDError.invalidRecord
+                    }
                 } else {
-                    result = try await CKMDefault.database.records(matching: query, resultsLimit: limit)
+                    if #available(watchOS 8.0, *) {
+                        result = try await CKMDefault.database.records(matching: query, resultsLimit: limit)
+                    } else {
+                        // Fallback on earlier versions
+                        // Initialize with empty values for older OS versions
+                        result = (matchResults: [], queryCursor: nil)
+                        throw CRUDError.invalidRecord
+                    }
                 }
                 //            print(">>>> \(result.matchResults)")
                 result.matchResults.forEach { matchResult in
@@ -630,6 +650,7 @@ extension CKMCloudable {
             }
         }
     
+    @available(watchOS 6.0.0, *)
     public func ckSave() async throws -> Self {
             let ckPreparedRecord = try       self.prepareCKRecord()
             let record           = try await CKMDefault.database.save(ckPreparedRecord.record)
@@ -687,4 +708,3 @@ extension CKMCloudable {
     }
     
 }
-

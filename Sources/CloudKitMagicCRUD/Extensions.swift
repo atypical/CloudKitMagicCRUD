@@ -5,6 +5,8 @@
 //  Created by Ricardo Venieris on 26/07/20.
 //  Copyright © 2020 Ricardo Venieris. All rights reserved.
 //
+//  Modified by MDavid Low on 04/2025
+//
 
 import CloudKit
 import CodableExtensions
@@ -255,6 +257,7 @@ public extension Optional {
 }
 
 @available(iOS 13.0.0, *)
+@available(watchOS 6.0.0, *)
 extension CKMPreparedRecord {
     
     public func dispatchPending(for savedRecord: CKRecord) async throws -> CKRecord {

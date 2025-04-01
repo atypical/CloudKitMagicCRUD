@@ -5,8 +5,10 @@
 //  Created by Ricardo Venieris on 18/08/20.
 //  Copyright © 2020 Ricardo Venieris. All rights reserved.
 //
+//  Modified by MDavid Low on 04/2025
+//
 
-    // iOS, tvOS, and watchOS
+// iOS, tvOS, and watchOS
 #if canImport(UIKit)
 import UIKit
 import CloudKit
@@ -16,6 +18,7 @@ import Combine
 open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
 	open var observers:[CKRecord.RecordType:NSPointerArray] = [:]
     public static var shared = { CKMNotificationManager() }()
+    @available(watchOS 6.0, *)
     @available(iOS 13.0, *)
     public static let receivedNotificationPublisher = PassthroughSubject<CKMNotification, Never>()
     
@@ -31,8 +34,9 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
 			if authorized {
 				DispatchQueue.main.async {
 					//					let app = UIApplication.shared.delegate as! AppDelegate
-//                    if #available(iOS 8, macCatalyst 13.1, tvOS 9, *)
+#if os(iOS) || targetEnvironment(macCatalyst)
                     UIApplication.shared.registerForRemoteNotifications()
+#endif
 				}
 				
 			}
@@ -54,12 +58,17 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let zoneID = qry?["zid"] as? String
                 
                 
-        Self.receivedNotificationPublisher.send(CKMNotification(category: category ?? "unknown", recordID: recordID, subscriptionID: subscriptionID, zoneID: zoneID, userID: userID, date: Date(), identifier: "", title: "", subtitle: "", body: "", badge: nil, sound: nil, launchImageName: ""))
+        if #available(watchOS 6.0, *) {
+            Self.receivedNotificationPublisher.send(CKMNotification(category: category ?? "unknown", recordID: recordID, subscriptionID: subscriptionID, zoneID: zoneID, userID: userID, date: Date(), identifier: "", title: "", subtitle: "", body: "", badge: nil, sound: nil, launchImageName: ""))
+        } else {
+            // Fallback on earlier versions
+        }
                 
             
         
     }
-	open func createNotification<T:CKMCloudable>(to recordObserver:CKMRecordObserver,
+    @available(watchOS 6.0, *)
+    open func createNotification<T:CKMCloudable>(to recordObserver:CKMRecordObserver,
 												 for recordType:T.Type,
 												 options:CKQuerySubscription.Options? = nil,
 												 predicate: NSPredicate? = nil,
@@ -100,6 +109,7 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
 	}
     
     open func deleteSubscription(with id:CKSubscription.ID, then completion:@escaping (Result<String, Error>)->Void) {
+        if #available(watchOS 6.0, *) {
             CKMDefault.database.delete(withSubscriptionID: id, completionHandler: { message, error in
                 if let message = message {
                     completion(.success(message))
@@ -107,7 +117,10 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 else if let error = error {
                     completion(.failure(error))
                 }
-        })
+            })
+        } else {
+            // Fallback on earlier versions
+        }
     }
 	private func add(observer:CKMRecordObserver, to identifier:String) {
 		self.observers[identifier] = self.observers[identifier] ?? NSPointerArray.strongObjects()
@@ -134,20 +147,19 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
 		notifyObserversFor(notification)
 		//		completionHandler(UNNotificationPresentationOptions.badge)
 	}
-#if !os(tvOS)
 
-	open func userNotificationCenter(_ center: UNUserNotificationCenter, openSettingsFor notification: UNNotification?) {
-		debugPrint(#function)
-	}
-	
-	
-	open func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-		debugPrint(#function)
-	}
-#endif
+    // The following methods are deprecated in newer iOS versions
+    // and have been commented out to prevent compiler errors
+    
+    // open func userNotificationCenter(_ center: UNUserNotificationCenter, openSettingsFor notification: UNNotification?) {
+    //     debugPrint(#function)
+    // }
+    
+    // open func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    //     debugPrint(#function)
+    //     completionHandler()
+    // }
 }
-
-
 
 /**
  A simplified UNNotification data
@@ -163,7 +175,7 @@ open class CKMNotificationManager: NSObject, UNUserNotificationCenterDelegate {
     - title: String - A short description of the reason for the alert.
     -  subtitle: String - A secondary description of the reason for the alert.
     -  body: String - The message displayed in the notification alert.
-    -  badge: NSNumber? - The number to display as the app’s icon badge.
+    -  badge: NSNumber? - The number to display as the app's icon badge.
     -  sound: UNNotificationSound? - The sound to play when the notification is delivered.
     -  launchImageName: String - The name of the launch image to display when your app is launched in response to the notification
  */
@@ -241,7 +253,9 @@ open class CKMNotification {
         self.subtitle = subtitle
         self.body = body
         self.badge = badge
+#if !os(tvOS)
         self.sound = sound
+#endif
         self.launchImageName = launchImageName
     }
 }
