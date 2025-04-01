@@ -387,36 +387,29 @@ extension CKMCloudable {
 		// Convert dictionary to Data and then decode using JSONDecoder
 		do {
 			// Create a sanitized copy of the dictionary that's safe for JSON serialization
-			var sanitizedDictionary = [String: Any]()
-			
-			// Process each key-value pair to ensure JSON compatibility
-			for (key, value) in dictionary {
-				if let date = value as? Date {
-					// Convert Date objects to timeIntervalSinceReferenceDate (Double)
-					sanitizedDictionary[key] = date.timeIntervalSinceReferenceDate
-				} else if let dateArray = value as? [Date] {
-					// Handle arrays of Date objects
-					sanitizedDictionary[key] = dateArray.map { $0.timeIntervalSinceReferenceDate }
-				} else if value is NSNull {
-					// Skip null values or provide a default
-					continue
-				} else if let nestedDict = value as? [String: Any] {
-					// Handle nested dictionaries recursively if needed
-					sanitizedDictionary[key] = sanitizeForJSON(nestedDict)
-				} else {
-					// Copy other values as is
-					sanitizedDictionary[key] = value
-				}
-			}
+			let sanitizedDictionary = sanitizeForJSON(dictionary)
 			
 			let data = try JSONSerialization.data(withJSONObject: sanitizedDictionary, options: [])
 			let decoder = JSONDecoder()
 			
-			// Configure decoder to handle date conversions
+			// Configure decoder to handle special types
 			decoder.dateDecodingStrategy = .custom { decoder in
 				let container = try decoder.singleValueContainer()
-				let timeInterval = try container.decode(Double.self)
-				return Date(timeIntervalSinceReferenceDate: timeInterval)
+				if let timeInterval = try? container.decode(Double.self) {
+					return Date(timeIntervalSinceReferenceDate: timeInterval)
+				}
+				throw DecodingError.dataCorruptedError(in: container, debugDescription: "Expected date value")
+			}
+			
+			// Configure data decoding strategy
+			decoder.dataDecodingStrategy = .custom { decoder in
+				let container = try decoder.singleValueContainer()
+				if let base64String = try? container.decode(String.self) {
+					if let data = Data(base64Encoded: base64String) {
+						return data
+					}
+				}
+				throw DecodingError.dataCorruptedError(in: container, debugDescription: "Expected base64 data")
 			}
 			
 			let result = try decoder.decode(Self.self, from: data)
@@ -432,18 +425,67 @@ extension CKMCloudable {
 		var sanitized = [String: Any]()
 		for (key, value) in dictionary {
 			if let date = value as? Date {
+				// Convert Date objects to timeIntervalSinceReferenceDate (Double)
 				sanitized[key] = date.timeIntervalSinceReferenceDate
 			} else if let dateArray = value as? [Date] {
+				// Handle arrays of Date objects
 				sanitized[key] = dateArray.map { $0.timeIntervalSinceReferenceDate }
+			} else if let data = value as? Data {
+				// Convert Data objects to base64 strings
+				sanitized[key] = data.base64EncodedString()
+			} else if let dataArray = value as? [Data] {
+				// Handle arrays of Data objects
+				sanitized[key] = dataArray.map { $0.base64EncodedString() }
 			} else if value is NSNull {
+				// Skip null values
 				continue
 			} else if let nestedDict = value as? [String: Any] {
+				// Handle nested dictionaries recursively
 				sanitized[key] = sanitizeForJSON(nestedDict)
+			} else if let nestedArray = value as? [Any] {
+				// Handle nested arrays recursively
+				sanitized[key] = sanitizeArray(nestedArray)
+			} else if let swiftData = value as? NSData {
+				// Handle NSData/NSSwiftData objects
+				let data = Data(referencing: swiftData)
+				sanitized[key] = data.base64EncodedString()
 			} else {
-				sanitized[key] = value
+				// Copy other values as is if they're JSON serializable
+				if JSONSerialization.isValidJSONObject([key: value]) {
+					sanitized[key] = value
+				} else {
+					// If not serializable, convert to string representation
+					sanitized[key] = String(describing: value)
+				}
 			}
 		}
 		return sanitized
+	}
+	
+	// Helper function to sanitize arrays for JSON serialization
+	private static func sanitizeArray(_ array: [Any]) -> [Any] {
+		return array.map { value in
+			if let date = value as? Date {
+				return date.timeIntervalSinceReferenceDate
+			} else if let data = value as? Data {
+				return data.base64EncodedString()
+			} else if let nestedDict = value as? [String: Any] {
+				return sanitizeForJSON(nestedDict)
+			} else if let nestedArray = value as? [Any] {
+				return sanitizeArray(nestedArray)
+			} else if let swiftData = value as? NSData {
+				let data = Data(referencing: swiftData)
+				return data.base64EncodedString()
+			} else if value is NSNull {
+				return NSNull()
+			} else {
+				if JSONSerialization.isValidJSONObject([0: value]) {
+					return value
+				} else {
+					return String(describing: value)
+				}
+			}
+		}
 	}
 	
 	public mutating func reloadIgnoringFail(completion: ()->Void) {
@@ -491,20 +533,20 @@ extension CKMCloudable {
 
     /// New implementation of CKLoadAll with cursor
 extension CKMCloudable {
-        ///
-        /// # Read all records from a type, limited on *limit* maxRecords.
-        /// - Parameters:
-        ///   - cursor         : A  *CKQueryOperation.Cursor* for query records next page
-        ///   - limit          :  max number of result records, or *CKQueryOperation.maximumResults* if ommited.
-        ///
-        /// - Returns          :
-        ///    - a (records, queryCursor)  in a completion handler where:
-        ///
-        ///       - records          :  contais a type objects array [T] encapsulated in a [Any]
-        ///       - queryCursor  : contains a cursor for next page
-        ///
-        ///    - or
-        ///       - an Error, if something goes wrong.
+    ///
+    /// # Read all records from a type, limited on *limit* maxRecords.
+    /// - Parameters:
+    ///   - cursor         : A  *CKQueryOperation.Cursor* for query records next page
+    ///   - limit          :  max number of result records, or *CKQueryOperation.maximumResults* if ommited.
+    ///
+    /// - Returns          :
+    ///    - a (records, queryCursor)  in a completion handler where:
+    ///
+    ///       - records          :  contais a type objects array [T] encapsulated in a [Any]
+    ///       - queryCursor  : contains a cursor for next page
+    ///
+    ///    - or
+    ///       - an Error, if something goes wrong.
     public static func ckLoadNext(cursor:CKQueryOperation.Cursor,
                                   limit:Int = CKQueryOperation.maximumResults,
                                   then completion:@escaping (Result<(records:[Any], queryCursor: CKQueryOperation.Cursor? ), Error>)->Void) {
