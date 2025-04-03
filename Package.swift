@@ -19,8 +19,8 @@ let package = Package(
             targets: ["CloudKitMagicCRUD"]),
     ],
     dependencies: [
-        // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/atypical/CloudKitMagicCRUD.git", .branch("LoggingImprovements")),
+        // Dependencies declare other packages that this package depends on, like so:
+        // .package(url: "https://github.com/atypical/CloudKitMagicCRUD.git", .branch("LoggingImprovements")),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -28,6 +28,3 @@ let package = Package(
         .target(name: "CloudKitMagicCRUD", dependencies: [])
 	]
 )
-
-
-// .product(name: "CodableExtensions", package: "CodableExtension")
