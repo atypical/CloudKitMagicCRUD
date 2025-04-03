@@ -326,7 +326,7 @@ extension CKMCloudable {
 					var references: [CKRecord.Reference] = []
 					for (index, item) in value.enumerated() {
 						do {
-                            if #available(watchOS 8.0, *) {
+                            if #available(iOS 15.0,watchOS 8.0, *) {
                                 if let reference = try await item.referenceSavingRecordIfNullAsync() {
                                     references.append(reference)
                                 } else {
