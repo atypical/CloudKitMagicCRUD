@@ -374,6 +374,54 @@ extension CKMCloudable {
 		}
 	}
 	
+	/**
+	Saves the object in iCloud without using async/await, for compatibility with older iOS versions.
+	This is a fallback method used internally and should not be called directly by clients.
+		Cases:
+			.success(let record:CKMRecord) -> The saved record, with correct Object Type, in a Any shell.  Just cast this to it's original type.
+			.failure(let error) an error
+	*/
+	@available(iOS 13.0, watchOS 6.0, macOS 10.15, tvOS 13.0, *)
+	public func ckSaveWithoutAsync(_ completion: @escaping (Result<Any, Error>) -> Void) {
+		// For iOS 15+ devices, use the async version wrapped in a Task
+		if #available(iOS 15.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
+			Task {
+				do {
+					let result = try await self.ckSaveAsync()
+					completion(.success(result))
+				} catch {
+					completion(.failure(error))
+				}
+			}
+			return
+		}
+		
+		// For older devices, use the legacy approach
+		let ckRecord = self.createCKRecord()
+		
+		CKMDefault.database.save(ckRecord) { record, error in
+			if let error = error {
+				completion(.failure(error))
+				return
+			}
+			
+			guard let record = record else {
+				completion(.failure(CRUDError.invalidRecord))
+				return
+			}
+			
+			// Add to cache
+			CKMDefault.addToCache(record)
+			
+			do {
+				let object = try Self.load(from: record.asDictionary)
+				completion(.success(object))
+			} catch {
+				completion(.failure(CRUDError.cannotMapRecordToObject))
+			}
+		}
+	}
+	
 	@available(iOS 15.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *)
 	public func ckSaveAsync() async throws -> Self {
 		let ckPreparedRecord = try await self.prepareCKRecordAsync()

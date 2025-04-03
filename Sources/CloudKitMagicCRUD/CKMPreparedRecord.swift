@@ -11,7 +11,7 @@
 import CloudKit
 
 /// Class for handling CloudKit records with cyclic references
-@available(iOS 13.0, watchOS 6.0, macOS 10.15, tvOS 13.0, *)
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, *)
 open class CKMPreparedRecord {
 	/// List of pending references that need to be saved
 	open var pending:[CKMPreparedRecord.Reference] = []
@@ -81,21 +81,46 @@ open class CKMPreparedRecord {
 		// If there are pending references
 		for item in pending {
 			// Save each pending reference
-			item.cyclicReferenceBranch.ckSave(then: { result in
-				switch result {
-					case .success(let savedBranchRecord):
-						guard let referenceID = (savedBranchRecord as? CKMCloudable)?.recordName else {
-							debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType) - Record saved without reference")
-							dump(self.record)
-							return
-						}
-						// Update the record with the saved reference
-						self.updateRecord(with: referenceID, in: item, then: completion)
-					case .failure(let error):
-						debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType)")
-						dump(error)
+			if #available(iOS 15.0, macOS 12.0, tvOS 15.0, *) {
+				item.cyclicReferenceBranch.ckSave(then: { result in
+					switch result {
+						case .success(let savedBranchRecord):
+							guard let referenceID = (savedBranchRecord as? CKMCloudable)?.recordName else {
+								debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType) - Record saved without reference")
+								dump(self.record)
+								return
+							}
+							// Update the record with the saved reference
+							self.updateRecord(with: referenceID, in: item, then: completion)
+						case .failure(let error):
+							debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType)")
+							dump(error)
+							completion(.failure(error))
+					}
+				})
+			} else {
+				// Fallback for older iOS versions
+				// Use the non-async version of saving
+				let legacyCompletion: (Result<Any, Error>) -> Void = { result in
+					switch result {
+						case .success(let savedBranchRecord):
+							guard let referenceID = (savedBranchRecord as? CKMCloudable)?.recordName else {
+								debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType) - Record saved without reference")
+								dump(self.record)
+								return
+							}
+							// Update the record with the saved reference
+							self.updateRecord(with: referenceID, in: item, then: completion)
+						case .failure(let error):
+							debugPrint("Error saving reference object for \(item.pendingCyclicReferenceName) in \(self.record.recordType)")
+							dump(error)
+							completion(.failure(error))
+					}
 				}
-			})
+				
+				// Call the legacy save method
+				item.cyclicReferenceBranch.ckSaveWithoutAsync(legacyCompletion)
+			}
 		}
 	}
 	
