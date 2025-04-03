@@ -102,7 +102,7 @@ extension CKMCloudable {
 		
 		// Start asynchronous operation
         
-        if #available(iOS 13.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
+        if #available(iOS 15.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
             self.ckSave(then: { result in
                 switch result {
                 case .success(let savedRecord):
@@ -114,7 +114,7 @@ extension CKMCloudable {
             })
         } else {
             // Fallback for older versions
-            if #available(watchOS 6.0, *) {
+            if #available(iOS 13.0,watchOS 6.0, *) {
                 self.ckSaveWithoutAsync({ result in
                     switch result {
                     case .success(let savedRecord):
@@ -303,7 +303,7 @@ extension CKMCloudable {
 					// If this record has a recordName, save the dependency
 					else if self.recordName != nil {
 						do {
-                            if #available(watchOS 8.0, *) {
+                            if #available(iOS 15.0,watchOS 8.0, *) {
                                 if let reference = try await value.referenceSavingRecordIfNullAsync() {
                                     ckRecord.setValue(reference, forKey: key)
                                 } else {
