@@ -102,7 +102,7 @@ extension CKMCloudable {
 		
 		// Start asynchronous operation
         
-        if #available(iOS 15.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
+        if #available(iOS 13.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
             self.ckSave(then: { result in
                 switch result {
                 case .success(let savedRecord):
@@ -136,7 +136,7 @@ extension CKMCloudable {
 	
 	// MARK: - Modern Async Methods
 	
-	@available(iOS 13.0, watchOS 8.0, macOS 10.15, tvOS 13.0, *)
+	@available(iOS 15.0, watchOS 8.0, macOS 10.15, tvOS 13.0, *)
 	public func referenceSavingRecordIfNullAsync() async throws -> CKRecord.Reference? {
 		if let reference = self.referenceInCacheOrNull {
 			return reference
