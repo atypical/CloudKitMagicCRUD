@@ -400,6 +400,45 @@ The async methods offer several advantages:
 
 This approach is particularly useful for complex data models with bidirectional relationships or deep object graphs.
 
+### Reference Cycle Handling
+
+CloudKitMagicCRUD provides robust handling for circular references in your object graph. This is important when objects reference each other, which could cause infinite loops when loading or saving.
+
+#### Modern Approach (iOS 15+, macOS 12+, tvOS 15+, watchOS 8+)
+
+For modern iOS versions, always use the async methods which provide better performance and avoid thread issues:
+
+```swift
+// Load a reference asynchronously (recommended for iOS 15+)
+if let recordDict = try await reference.asyncLoad() {
+    // Check if this is a cycle reference
+    if let isCycle = recordDict["__isCycleReference"] as? Bool, isCycle {
+        print("Detected a reference cycle, handling gracefully")
+    } else {
+        // Process the record normally
+    }
+}
+
+// Load an array of references asynchronously
+let records = try await references.asyncLoadAll()
+```
+
+#### Legacy Approach (iOS 13-14)
+
+For older iOS versions that don't support async/await, use the synchronous methods:
+
+```swift
+// Load a reference synchronously (only for iOS 13-14)
+if let recordDict = reference.syncLoad() {
+    // Process the record
+}
+
+// Load an array of references synchronously
+let records = references.syncLoadAll()
+```
+
+> **Important**: The synchronous methods are deprecated on iOS 15+ and will show compiler warnings. They should only be used for backward compatibility with older iOS versions.
+
 ### Working with Subscriptions and Notifications
 
 CloudKitMagicCRUD provides a simplified interface for working with CloudKit subscriptions and notifications. The system automatically prevents duplicate subscriptions and offers both completion handler and async/await APIs.

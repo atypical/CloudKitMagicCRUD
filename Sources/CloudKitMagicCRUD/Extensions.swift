@@ -54,7 +54,12 @@ extension CKRecord {
             }
             // If value is an array of references
             else if let value = self.value(forKey: key) as? [CKRecord.Reference] {
-                result[key] = value.map { $0.syncLoad() }
+                if #available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *) {
+                    result[key] = value.syncLoadAll()
+                } else {
+                    // Fallback for older watchOS versions
+                    result[key] = value.map { $0.syncLoad() }
+                }
             }
 
             // If value is an Asset, convert to Data
@@ -154,20 +159,41 @@ extension CKRecord {
 }
 
 extension CKRecord.Reference {
-    /// Loads the referenced record synchronously.
+    /// Loads the referenced record.
+    /// This method is synchronous and will block the current thread.
+    /// It's recommended to use asyncLoad() on iOS 15+ for better performance.
+    @available(iOS, deprecated: 15.0, message: "Use asyncLoad() instead")
+    @available(macOS, deprecated: 12.0, message: "Use asyncLoad() instead")
+    @available(tvOS, deprecated: 15.0, message: "Use asyncLoad() instead")
+    @available(watchOS, deprecated: 8.0, message: "Use asyncLoad() instead")
     func syncLoad() -> [String: Any]? {
-        let recordName: String = self.recordID.recordName
-        // Execute the fetch
-
-        // If the record is cached, return it
-        if let record = CKMDefault.getFromCache(recordName) {
-            if record.haveCycle() {
-                // Return a simplified reference instead of crashing
-                return ["recordName": recordName, "__isCycleReference": true]
+        // On iOS 15+, use the async method wrapped in a Task
+        if #available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *) {
+            var result: [String: Any]?
+            let semaphore = DispatchSemaphore(value: 0)
+            
+            Task {
+                do {
+                    result = try await self.asyncLoad()
+                } catch {
+                    debugPrint("Error loading reference: \(error)")
+                }
+                semaphore.signal()
             }
-            return record.asDictionary
+            
+            semaphore.wait()
+            return result
         }
-
+        
+        // Legacy implementation for older iOS versions
+        let recordName: String = self.recordID.recordName
+        
+        // If the record is cached, return it
+        if let cachedRecord = CKMDefault.getFromCache(recordName) {
+            return cachedRecord.asDictionary
+        }
+        
+        // Otherwise fetch it from CloudKit
         var result: [String: Any]?
         CKMDefault.database.fetch(withRecordID: CKRecord.ID(recordName: recordName), completionHandler: { (record, error) -> Void in
 
@@ -216,15 +242,48 @@ extension CKRecord.Reference {
 }
 
 /// Extension to handle arrays of references
-@available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 extension Array where Element == CKRecord.Reference {
+    /// Loads all referenced records synchronously.
+    /// This method is synchronous and will block the current thread.
+    /// It's recommended to use asyncLoadAll() on iOS 15+ for better performance.
+    func syncLoadAll() -> [[String: Any]?] {
+        // On iOS 15+, use the async method wrapped in a Task
+        if #available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *) {
+            var result: [[String: Any]?] = []
+            let semaphore = DispatchSemaphore(value: 0)
+            
+            Task {
+                do {
+                    result = try await self.asyncLoadAll()
+                } catch {
+                    debugPrint("Error loading references: \(error)")
+                }
+                semaphore.signal()
+            }
+            
+            semaphore.wait()
+            return result
+        }
+        
+        // Legacy implementation for older iOS versions
+        return self.map { $0.syncLoad() }
+    }
+    
     /// Loads all referenced records asynchronously.
+    @available(iOS 15.0, macOS 12.0, tvOS 15.0, watchOS 8.0, *)
     func asyncLoadAll(loadedRecords: Set<String> = []) async throws -> [[String: Any]?] {
         var results: [[String: Any]?] = []
+        var updatedLoadedRecords = loadedRecords
         
         for reference in self {
-            let result = try await reference.asyncLoad(loadedRecords: loadedRecords)
+            let result = try await reference.asyncLoad(loadedRecords: updatedLoadedRecords)
             results.append(result)
+            
+            // Add this record to the loaded records set to track cycles
+            if let result = result, let recordName = result["recordName"] as? String {
+                updatedLoadedRecords.insert(recordName)
+            }
         }
         
         return results
