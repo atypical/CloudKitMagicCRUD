@@ -882,11 +882,11 @@ protocol CKMRecord {
     var recordName: String? { get set }
     
     // Optional properties
-    var createdBy: String? { get set }
-    var createdAt: Date? { get set }
-    var modifiedBy: String? { get set }
-    var modifiedAt: Date? { get set }
-    var changeTag: String? { get set }
+    var createdBy: String? { get }
+    var createdAt: Date? { get }
+    var modifiedBy: String? { get }
+    var modifiedAt: Date? { get }
+    var changeTag: String? { get }
     
     // Converts a CloudKit.CKRecord into an object
     static func load(from record: CKRecord) throws -> Self
