@@ -102,7 +102,7 @@ extension CKMCloudable {
 		
 		// Start asynchronous operation
         
-        if #available(watchOS 8.0, *) {
+        if #available(iOS 15.0, watchOS 8.0, macOS 12.0, tvOS 15.0, *) {
             self.ckSave(then: { result in
                 switch result {
                 case .success(let savedRecord):
@@ -113,7 +113,20 @@ extension CKMCloudable {
                 CKMDefault.semaphore.signal()
             })
         } else {
-            // Fallback on earlier versions
+            // Fallback for older versions
+            if #available(watchOS 6.0, *) {
+                self.ckSaveWithoutAsync({ result in
+                    switch result {
+                    case .success(let savedRecord):
+                        savedReference = (savedRecord as? CKMCloudable)?.reference
+                    case .failure(let error):
+                        debugPrint("error saving record \(self.recordName ?? "without recordName") \n\(error)")
+                    }
+                    CKMDefault.semaphore.signal()
+                })
+            } else {
+                // Fallback on earlier versions
+            }
         }
 		// End asynchronous operation
 		CKMDefault.semaphore.wait()
@@ -130,7 +143,7 @@ extension CKMCloudable {
 		}
 		
 		do {
-			let savedRecord = try await self.ckSave()
+			let savedRecord = try await self.ckSaveAsync()
 			return savedRecord.reference
 		} catch {
 			debugPrint("Error saving record \(self.recordName ?? "without recordName"): \(error.localizedDescription)")
